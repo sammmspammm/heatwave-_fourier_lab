@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heatwave Fourier Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one guided column. Hero with live "heat stripes" of the day, then numbered steps
+   (problem, data, waves, try it, number example, energy check, decision), then limits and conclusion. */
+:root{
+  --bg:#F2F5F8; --surface:#FFFFFF; --surface-2:#E8EDF2; --fg:#14202B; --muted:#4F5F6E; --line:#CFD8E0;
+  --heat:#C0401A; --heat-soft:#F6D9CD; --cool:#1F5F8B; --alt:#6B4E9B; --teal:#157A6E;
+  --s-ok:#2E7D4F; --s-watch:#8F5C00; --s-alert:#C0401A; --s-severe:#9C1230; --pill-fg:#FFFFFF;
+  --z-ok:#D6EBDD; --z-watch:#F5E3B8; --z-alert:#F6D0C0; --z-severe:#EDB9C4;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1620; --surface:#16212D; --surface-2:#1E2C3A; --fg:#E6ECF2; --muted:#9FB0C0; --line:#2C3C4C;
+  --heat:#FF8157; --heat-soft:#3A2219; --cool:#6DB4E8; --alt:#BBA1EA; --teal:#4CC2B2;
+  --s-ok:#5CC48A; --s-watch:#E3A93B; --s-alert:#FF8157; --s-severe:#FF6B86; --pill-fg:#0E1620;
+  --z-ok:#1C3A2B; --z-watch:#3D3216; --z-alert:#42241A; --z-severe:#431E2A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E1620; --surface:#16212D; --surface-2:#1E2C3A; --fg:#E6ECF2; --muted:#9FB0C0; --line:#2C3C4C;
+  --heat:#FF8157; --heat-soft:#3A2219; --cool:#6DB4E8; --alt:#BBA1EA; --teal:#4CC2B2;
+  --s-ok:#5CC48A; --s-watch:#E3A93B; --s-alert:#FF8157; --s-severe:#FF6B86; --pill-fg:#0E1620;
+  --z-ok:#1C3A2B; --z-watch:#3D3216; --z-alert:#42241A; --z-severe:#431E2A; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:16px;line-height:1.65;padding-inline:clamp(16px,4vw,32px);padding-block:24px 64px}
+.wrap{max-width:980px;margin-inline:auto;display:flex;flex-direction:column;gap:56px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(32px,6vw,54px);font-weight:700;letter-spacing:-.015em}
+h2{font-size:clamp(23px,3.4vw,30px);font-weight:700;display:flex;align-items:center;gap:12px}
+h3{font-size:16px;font-weight:600;font-family:var(--f-body)}
+p{margin:0;max-width:66ch}
+.eyebrow{font-family:var(--f-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.lede{font-size:18px;color:var(--muted);max-width:60ch}
+.hint{font-size:14px;color:var(--muted)}
+.stepno{flex:none;display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--heat);color:var(--pill-fg);font-family:var(--f-mono);font-size:15px;font-weight:500}
+section.step{display:flex;flex-direction:column;gap:20px;scroll-margin-top:64px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr))}
+.grid>*{min-width:0}
+.grid2{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))}
+.grid2>*{min-width:0}
+/* nav */
+.nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);margin-inline:calc(-1*clamp(16px,4vw,32px));padding:10px clamp(16px,4vw,32px);display:flex;gap:8px;overflow-x:auto}
+.nav button{flex:none;padding:6px 12px;font-size:13px;border-radius:99px}
+/* hero */
+.hero{display:flex;flex-direction:column;gap:18px}
+.stripes{display:flex;height:76px;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.stripes span{flex:1;min-width:0}
+.stripe-lab{display:flex;justify-content:space-between;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:12px}
+.flow>div{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0;position:relative}
+.flow .k{font-family:var(--f-mono);font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);display:flex;gap:8px;align-items:center}
+.flow .k b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--surface-2);color:var(--fg);font-weight:500}
+.flow .v{margin-top:6px;font-size:15px;overflow-wrap:anywhere}
+.flow .v b{font-family:var(--f-mono);font-weight:500}
+.pill{display:inline-block;padding:2px 12px;border-radius:99px;font-weight:600;font-size:14px;background:var(--s-ok);color:var(--pill-fg);white-space:nowrap}
+.pill.watch{background:var(--s-watch)}.pill.alert{background:var(--s-alert)}.pill.severe{background:var(--s-severe)}
+.bigpill{font-size:20px;padding:6px 18px}
+.banner{border:1px solid var(--line);border-left-width:4px;border-radius:8px;padding:10px 14px;background:var(--surface);font-size:14.5px}
+.banner.spell{border-left-color:var(--s-alert);background:var(--heat-soft)}
+.banner.ex{border-left-color:var(--s-watch)}
+/* concept cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
+.card .t{font-family:var(--f-display);font-weight:700;font-size:18px}
+.card p{font-size:15px}
+.tag{display:inline-block;font-family:var(--f-mono);font-size:12px;padding:1px 8px;border-radius:6px;background:var(--surface-2);color:var(--muted)}
+/* forms */
+.tabs{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;align-self:flex-start;max-width:100%}
+.tabs button{border:0;border-radius:0;background:var(--surface-2);padding:9px 16px}
+.tabs button[aria-pressed=true]{background:var(--heat);color:var(--pill-fg);font-weight:600}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>label,.field>.lab{font-size:14px;color:var(--muted);display:flex;justify-content:space-between;gap:8px}
+.field output{font-family:var(--f-mono);color:var(--fg)}
+.row3{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:16px}
+input[type=text],input[type=number],select,textarea{font:inherit;font-size:14.5px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--fg);width:100%}
+textarea{min-height:130px;font-family:var(--f-mono);font-size:12.5px;resize:vertical}
+input[type=range]{width:100%;accent-color:var(--heat)}
+input:focus-visible,select:focus-visible,textarea:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--heat);outline-offset:2px}
+button{font:inherit;font-size:14.5px;padding:9px 16px;border-radius:8px;border:1px solid var(--line);background:var(--surface-2);color:var(--fg);cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:var(--heat);color:var(--pill-fg);border-color:var(--heat);font-weight:600}
+.btnrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.filebtn{position:relative;overflow:hidden;display:inline-block}
+.filebtn input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg label{flex:1;text-align:center;padding:8px 10px;cursor:pointer;font-size:14px;background:var(--surface-2);display:block;color:var(--fg)}
+.seg input:checked+label{background:var(--heat);color:var(--pill-fg);font-weight:600}
+.seg input:focus-visible+label{outline:2px solid var(--fg);outline-offset:-3px}
+.err{font-size:14px;color:var(--s-severe)}
+.warn{font-size:14px;color:var(--s-watch)}
+/* charts */
+svg{display:block;width:100%;height:auto}
+svg text{font-family:var(--f-mono);font-size:11px;fill:var(--muted)}
+svg text.lab{fill:var(--fg)}
+svg .gl{stroke:var(--line);stroke-width:1}
+svg .ax{stroke:var(--muted);stroke-width:1}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13.5px;color:var(--muted);margin-bottom:6px}
+.legend i{display:inline-block;width:16px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px}
+.legend i.dot{width:9px;height:9px;border-radius:50%}
+.minis{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr))}
+.mini{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;min-width:0}
+.mini .cap{font-size:13px;color:var(--muted);margin-top:4px}
+.mini .ttl{font-weight:600;font-size:14px}
+/* formulas */
+.formula{font-family:var(--f-mono);font-size:13.5px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;white-space:pre;line-height:1.75}
+.say{font-size:15px;border-left:3px solid var(--line);padding-left:12px;color:var(--muted);max-width:66ch}
+.say b{color:var(--fg)}
+/* tables */
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.scroll{max-height:300px;overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{padding:7px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+td.n,th.n{text-align:right;font-family:var(--f-mono)}
+th{font-weight:600;color:var(--muted);background:var(--surface-2);position:sticky;top:0}
+tr:last-child td{border-bottom:0}
+tbody tr.clk{cursor:pointer}
+tbody tr.clk:hover td,tr.pick td{background:var(--surface-2)}
+table.plain th,table.plain td{white-space:normal;font-family:var(--f-body)}
+table.plain td:first-child{font-weight:600;white-space:nowrap}
+.result{font-family:var(--f-mono);background:var(--heat-soft);border-radius:10px;padding:12px 14px;font-size:14px;overflow-x:auto;line-height:1.7}
+/* meter & stats */
+.meter{height:16px;border-radius:99px;background:var(--surface-2);overflow:hidden;border:1px solid var(--line)}
+.meter>div{height:100%;background:var(--teal);border-radius:99px 0 0 99px}
+.meter-row{display:flex;justify-content:space-between;gap:10px;font-size:14px;margin-bottom:6px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:12px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0;background:var(--surface)}
+.stat .k{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-family:var(--f-mono);font-size:22px;margin-top:2px;overflow-wrap:anywhere}
+.stat .s{font-size:13px;color:var(--muted)}
+ul.plainlist{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px}
+ul.plainlist li{max-width:68ch}
+.ladder{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.ladder li{display:flex;justify-content:space-between;gap:10px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;font-size:14.5px;color:var(--muted)}
+.ladder li.on{border-color:var(--fg);color:var(--fg);background:var(--surface-2);font-weight:600}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:6px 16px;margin:0;font-size:14.5px}
+dl.facts dt{color:var(--muted)}dl.facts dd{margin:0;font-family:var(--f-mono);overflow-wrap:anywhere}
+pre.report{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font-family:var(--f-mono);font-size:13px;background:var(--surface-2);border-radius:10px;padding:14px 16px}
+details{border:1px solid var(--line);border-radius:10px;padding:12px 16px;background:var(--surface)}
+summary{cursor:pointer;font-weight:600}
+details[open]>summary{margin-bottom:12px}
+.head{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;justify-content:space-between}
+@media (prefers-reduced-motion:no-preference){.meter>div{transition:width .3s}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- ================= HERO ================= -->
+<header class="hero">
+  <div class="eyebrow">Transform Methods and Applications · Fourier series · Heatwave</div>
+  <h1>How hot will the afternoon get?</h1>
+  <p class="lede">The temperature through a day rises and falls like a wave. A Fourier series breaks that wave into a few simple, smooth waves. With them we can find the hottest hour, see how long the heat stays dangerous, and decide whether to warn people.</p>
+  <div>
+    <div class="stripes" id="stripes" role="img" aria-label="Colour stripes for each hour of the day, from cool to hot"></div>
+    <div class="stripe-lab"><span>00:00</span><span id="stripe-note">each stripe is one hour</span><span>24:00</span></div>
+  </div>
+  <div class="flow" aria-live="polite">
+    <div><div class="k"><b>1</b>Readings</div><div class="v" id="f1"></div></div>
+    <div><div class="k"><b>2</b>Fourier series</div><div class="v" id="f2"></div></div>
+    <div><div class="k"><b>3</b>Result</div><div class="v" id="f3"></div></div>
+    <div><div class="k"><b>4</b>Decision</div><div class="v" id="f4"></div></div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Sections" id="nav"></nav>
+
+<!-- ================= 1 PROBLEM ================= -->
+<section class="step" id="problem">
+  <h2><span class="stepno">1</span>The problem</h2>
+  <p>We have the temperature for every hour of one day, from 00:00 to 24:00. We want to answer three simple questions:</p>
+  <ul class="plainlist">
+    <li>How hot does the afternoon get, and at what time?</li>
+    <li>For how many hours is it dangerously hot?</li>
+    <li>Does this day count as a heatwave?</li>
+  </ul>
+  <p>A list of 25 raw readings is noisy and hard to read. A Fourier series turns it into one smooth curve described by only a handful of numbers.</p>
+  <div class="grid">
+    <div class="card"><span class="t">Fourier series</span><p>Any repeating curve can be written as a steady level plus waves that go up and down at different speeds.</p></div>
+    <div class="card"><span class="t">Half-range series</span><p>We only have one day of data, so we make a repeating curve by adding a mirror copy. A plain mirror gives a <b>cosine series</b>. A flipped mirror gives a <b>sine series</b>.</p></div>
+    <div class="card"><span class="t">Parseval's identity</span><p>The energy of the day equals the energy of all its waves added together. So we can measure how much each wave matters and how much is still missing.</p></div>
+  </div>
+  <h3>The mirror trick, using the day shown above</h3>
+  <div class="grid2">
+    <div class="panel"><h3>Plain mirror, cosine series</h3><div id="mirC"></div><p class="hint">The curve meets itself smoothly at midnight. This is why the cosine series fits well.</p></div>
+    <div class="panel"><h3>Flipped mirror, sine series</h3><div id="mirS"></div><p class="hint">The flipped copy makes a big jump at midnight. The sine series has to work hard to fit that jump.</p></div>
+  </div>
+</section>
+
+<!-- ================= 2 DATA ================= -->
+<section class="step" id="data">
+  <h2><span class="stepno">2</span>The data</h2>
+  <p>Choose where the hourly temperatures come from. Everything on this page updates to match.</p>
+  <div class="tabs" role="group" aria-label="Data source">
+    <button type="button" id="tab-sim" aria-pressed="true">Example day (simulated)</button>
+    <button type="button" id="tab-mine" aria-pressed="false">My own readings</button>
+  </div>
+
+  <div class="panel stack" id="pane-sim">
+    <p>This day is made by a formula so you can change it. It imitates a hot pre-monsoon day in central India with 25 hourly readings (00:00 to 24:00).</p>
+    <div class="formula">temperature = average level
+            + swing × daily wave (hottest at 15:00)
+            + 0.18 × swing × smaller wave (sharpens the afternoon peak)
+            + sensor noise</div>
+    <div class="row3">
+      <div class="field"><label for="mean-sl">Average level <output id="mean-out"></output></label><input type="range" id="mean-sl" min="28" max="42" step="0.5" value="35.5"></div>
+      <div class="field"><label for="amp-sl">Day–night swing <output id="amp-out"></output></label><input type="range" id="amp-sl" min="2" max="12" step="0.5" value="7.5"></div>
+      <div class="field"><label for="noise-sl">Sensor noise <output id="noise-out"></output></label><input type="range" id="noise-sl" min="0" max="2" step="0.1" value="0.6"></div>
+    </div>
+    <div class="btnrow"><button type="button" id="reseed">New random noise</button></div>
+    <p class="hint">Why these numbers: an average near 35 °C with a 7.5 °C swing gives an afternoon peak near 43 °C, which is typical of a plains heatwave day. The noise imitates a real sensor.</p>
+  </div>
+
+  <div class="panel stack" id="pane-mine" hidden>
+    <div class="field"><label for="place">Place or station (optional)</label><input type="text" id="place" placeholder="e.g. Nagpur airport station" maxlength="60"></div>
+    <div class="field">
+      <label for="data">Hourly temperatures</label>
+      <textarea id="data" spellcheck="false" placeholder="Paste 24 numbers for one day, or CSV rows like:&#10;2026-05-12 00:00, 31.2&#10;2026-05-12 01:00, 30.6&#10;..."></textarea>
+      <p class="hint">Accepted: 24 or 25 numbers for one day, a multiple of 24 for several days, or CSV rows with a date-time and a temperature. The Open-Meteo hourly CSV works as it is.</p>
+    </div>
+    <div class="row3">
+      <div class="field"><label for="unit">Unit</label><select id="unit"><option value="C">°C</option><option value="F">°F</option></select></div>
+      <div class="field"><label for="rh">Humidity at the peak, % (optional)</label><input type="number" id="rh" min="5" max="100" step="1" placeholder="e.g. 45"></div>
+      <div class="field"><label for="ex">Or load a simulated example</label><select id="ex"><option value="">Choose…</option><option value="spell">7-day heat spell</option><option value="humid">Humid coastal day</option><option value="mild">Mild day</option></select></div>
+    </div>
+    <div class="btnrow">
+      <button type="button" class="primary" id="go">Analyse my readings</button>
+      <span class="filebtn"><button type="button" tabindex="-1">Upload a CSV file</button><input type="file" id="file" accept=".csv,.txt,text/csv,text/plain" aria-label="Upload a CSV file"></span>
+    </div>
+    <p class="err" id="err" role="alert"></p>
+    <p class="hint">Where to find real readings: Open-Meteo Historical Weather (choose hourly temperature_2m and export CSV), data.gov.in, India Meteorological Department station records, or your own sensor log. Check each source's terms and cite it in your submission.</p>
+  </div>
+
+  <div id="srcnote"></div>
+  <div class="field" id="dayrow" hidden style="max-width:320px"><label for="daysel">Day to study</label><select id="daysel"></select></div>
+</section>
+
+<!-- ================= 3 WAVES ================= -->
+<section class="step" id="waves">
+  <h2><span class="stepno">3</span>Split the day into waves</h2>
+  <p>The cosine series writes the day as a steady level plus waves. Each wave is a cosine that completes <i>n</i> half-turns across the 24 hours.</p>
+  <div class="formula">f(t) ≈ a₀/2 + a₁ cos(πt/24) + a₂ cos(2πt/24) + a₃ cos(3πt/24) + …
+
+aₙ = (2/24) ∫₀²⁴ f(t) cos(nπt/24) dt</div>
+  <p class="say"><b>In words:</b> a₀/2 is the average temperature of the day. Each aₙ says how strong wave number n is. The integral compares the day with the wave: the more they look alike, the bigger aₙ. Wave n repeats every 48/n hours, so n = 2 is the 24-hour daily cycle and n = 4 is the 12-hour cycle.</p>
+  <h3>The four most important building blocks for this day</h3>
+  <div class="minis" id="blocks"></div>
+  <p class="say"><b>Add them up</b> and you get the smooth curve in the next step. More waves give a closer fit.</p>
+</section>
+
+<!-- ================= 4 TRY IT ================= -->
+<section class="step" id="lab">
+  <h2><span class="stepno">4</span>Try it: add waves one at a time</h2>
+  <div class="panel stack">
+    <div class="row3">
+      <div class="field"><span class="lab" id="lab-type">Mirror type</span>
+        <div class="seg" role="radiogroup" aria-labelledby="lab-type">
+          <input type="radio" name="stype" id="st-cos" value="cos" checked><label for="st-cos">Cosine</label>
+          <input type="radio" name="stype" id="st-sin" value="sin"><label for="st-sin">Sine</label>
+        </div>
+      </div>
+      <div class="field"><label for="n-sl">Number of waves kept, N <output id="n-out">6</output></label><input type="range" id="n-sl" min="0" max="20" step="1" value="6"></div>
+      <div class="field"><span class="lab">&nbsp;</span><div class="btnrow"><button type="button" class="primary" id="play">Add waves one by one</button></div></div>
+    </div>
+    <div>
+      <div class="legend"><span><i class="dot" style="background:var(--fg)"></i>Hourly readings</span><span><i style="background:var(--heat)"></i>Curve made from N waves</span><span><i style="background:var(--s-severe);height:0;border-top:2px dashed var(--s-severe)"></i>40 °C heatwave line</span></div>
+      <div id="labChart"></div>
+      <p class="hint" id="labCap"></p>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><h3>Which waves matter?</h3><div id="spec"></div><p class="hint">Each bar is the size of one wave. Orange bars are the waves you are keeping. The numbers under some bars show how long that wave takes to repeat.</p></div>
+    <div class="panel"><h3>How far off is the curve?</h3>
+      <div class="legend"><span><i style="background:var(--cool)"></i>Cosine</span><span><i style="background:var(--alt)"></i>Sine</span></div>
+      <div id="errc"></div><p class="hint">Average error in °C on a log scale, as more waves are kept. The cosine version gets close much faster because its mirror has no jump.</p></div>
+  </div>
+</section>
+
+<!-- ================= 5 NUMBER EXAMPLE ================= -->
+<section class="step" id="example">
+  <h2><span class="stepno">5</span>One full number example</h2>
+  <p>Here is how one wave strength is computed from the readings, using the cosine series. The integral is replaced by a sum over the hourly readings (the trapezoid rule, where the first and last readings count half).</p>
+  <div class="field" style="max-width:260px"><label for="wn">Wave number n</label>
+    <select id="wn"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
+  <div class="tbl scroll"><table id="wtable"></table></div>
+  <div class="result" id="wres"></div>
+  <details>
+    <summary>A classroom example you can do by hand</summary>
+    <div class="grid2">
+      <div class="formula">f(x) = x on (0, π), cosine series
+a₀ = (2/π)∫₀^π x dx = π
+aₙ = (2/π)∫₀^π x cos nx dx
+   = 2((−1)ⁿ − 1)/(π n²)
+   = −4/(π n²) for odd n, 0 for even n
+
+x ≈ π/2 − (4/π)(cos x + cos 3x/9 + cos 5x/25 + …)</div>
+      <div class="formula">Parseval check
+(1/π)∫₀^π x² dx = π²/3
+
+a₀²/4 + ½ Σ aₙ² = π²/4 + (8/π²) Σ 1/n⁴  (n odd)
+
+π²/3 − π²/4 = π²/12 = (8/π²) Σ 1/n⁴
+so 1 + 1/3⁴ + 1/5⁴ + … = π⁴/96 ≈ 1.01468</div>
+    </div>
+  </details>
+</section>
+
+<!-- ================= 6 ENERGY ================= -->
+<section class="step" id="energy">
+  <h2><span class="stepno">6</span>Energy check with Parseval</h2>
+  <p>Parseval's identity says the energy of the day equals the energy of its waves added together:</p>
+  <div class="formula">cosine:  (1/24) ∫₀²⁴ f(t)² dt  =  a₀²/4 + ½ (a₁² + a₂² + a₃² + …)
+sine:    (1/24) ∫₀²⁴ f(t)² dt  =  ½ (b₁² + b₂² + b₃² + …)</div>
+  <p class="say"><b>In words:</b> the left side is the total energy E of the day. Each wave adds a small share of it. The share that is still missing after N waves is the error, so the average error is √(E − energy kept).</p>
+  <div class="panel stack">
+    <div class="meter-row"><span id="meterLab"></span><b class="mono" id="meterPct" style="font-family:var(--f-mono)"></b></div>
+    <div class="meter" role="img" aria-label="Share of the day's energy kept by the waves"><div id="meterBar" style="width:0"></div></div>
+    <p class="hint">Most of the energy sits in the average level, so this number is always very close to 100 %. The next bar removes the average and shows how well the waves explain the daily ups and downs, which is what matters for the peak.</p>
+    <div class="meter-row" style="margin-top:6px"><span>Daily ups and downs explained by N cosine waves</span><b id="meter2Pct" style="font-family:var(--f-mono)"></b></div>
+    <div class="meter" role="img" aria-label="Share of the day's temperature variation explained"><div id="meter2Bar" style="width:0"></div></div>
+    <dl class="facts" id="energyFacts"></dl>
+  </div>
+</section>
+
+<!-- ================= 7 DECISION ================= -->
+<section class="step" id="decision">
+  <h2><span class="stepno">7</span>The decision</h2>
+  <p>The decision uses the smooth cosine curve with the number of waves you chose above (N = <span id="decN">6</span>). We read the peak, the hot hours and the night low from it, which is steadier than reading single noisy values.</p>
+  <div id="spellBanner"></div>
+  <div class="panel stack">
+    <div class="head"><h3 id="decTitle" style="font-size:18px"></h3><span id="decPill"></span></div>
+    <div id="gauge"></div>
+    <div class="stats" id="stats"></div>
+    <h3>What to do</h3>
+    <ul class="plainlist" id="advice"></ul>
+    <div class="grid2">
+      <div><h3 style="margin-bottom:8px">Warning levels used</h3><ul class="ladder" id="ladder"></ul><p class="hint" style="margin-top:8px">Simplified. The India Meteorological Department uses 40 °C as the plains heatwave line and also looks at how far above normal the temperature is, which this page does not know.</p></div>
+      <div><h3 style="margin-bottom:8px">Confidence</h3><p id="confTxt"></p><label class="hint" for="rh2" style="display:block;margin-top:12px">Humidity at the peak, % (optional, for the "feels like" value)</label><input type="number" id="rh2" min="5" max="100" step="1" placeholder="e.g. 45" style="max-width:160px"></div>
+    </div>
+  </div>
+  <div class="panel stack" id="multi" hidden>
+    <h3>Day by day</h3>
+    <div class="legend"><span><i style="background:var(--s-ok)"></i>Normal</span><span><i style="background:var(--s-watch)"></i>Watch</span><span><i style="background:var(--s-alert)"></i>Heatwave</span><span><i style="background:var(--s-severe)"></i>Severe</span></div>
+    <div id="peaks"></div>
+    <div class="tbl scroll"><table id="daytable"></table></div>
+    <p class="hint">Click a row to study that day.</p>
+  </div>
+  <div class="panel stack">
+    <div class="head"><h3>Summary you can copy</h3><button type="button" id="copy">Copy summary</button></div>
+    <pre class="report" id="rep"></pre>
+  </div>
+</section>
+
+<!-- ================= LIMITS + CONCLUSION ================= -->
+<section class="step" id="limits">
+  <h2>Limits of this analysis</h2>
+  <ul class="plainlist">
+    <li>The example day is made by a formula, not measured. Real days also have clouds, wind and humidity changes.</li>
+    <li>Hourly readings can only show waves that repeat every 2 hours or slower, so the series stops at 24 waves and this page stops at 20.</li>
+    <li>The mirror copy is a maths trick. Real temperature does not mirror itself at midnight.</li>
+    <li>The integrals are done with the trapezoid rule on 25 readings, so Parseval's identity holds only approximately.</li>
+    <li>The warning levels are simplified. A real warning also uses departure from normal, humidity and how many days in a row it is hot.</li>
+    <li>One station and one day cannot show whether a heatwave will last.</li>
+  </ul>
+</section>
+
+<section class="step" id="conclusion">
+  <h2>Conclusion</h2>
+  <p>A day of temperature readings can be written as a steady level plus a few smooth waves. The cosine series fits better than the sine series because its mirror copy has no jump at midnight. Parseval's identity turns the wave sizes into an energy budget, so we know how much of the day each wave explains and how much error is left. A handful of waves is enough to find the afternoon peak and the hot window and to give a clear heatwave warning with a stated confidence.</p>
+</section>
+
+</div>
+
+<script>
+(function(){
+var L=24,NMAX=20,PI=Math.PI,MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var S={mode:'sim',sim:{mean:35.5,amp:7.5,noise:0.6,seed:7},days:[],sel:0,type:'cos',N:6,rh:null,example:false,place:'',timer:null,mine:null};
+var $=function(id){return document.getElementById(id)};
+
+/* ---------- maths ---------- */
+function trapz(g){var s=0,i;for(i=0;i<g.length;i++)s+=g[i];return s-0.5*(g[0]+g[g.length-1])}
+function coefs(f,type){var c=[],n,k;for(n=0;n<=NMAX;n++){var g=[];for(k=0;k<=24;k++)g.push(f[k]*(type==='cos'?Math.cos(n*PI*k/L):Math.sin(n*PI*k/L)));c.push(2/L*trapz(g))}return c}
+function energy(f){return trapz(f.map(function(v){return v*v}))/L}
+function partial(c,type,N){var s=type==='cos'?c[0]*c[0]/4:0,n;for(n=1;n<=N;n++)s+=0.5*c[n]*c[n];return s}
+function recon(c,type,t,N){var s=type==='cos'?c[0]/2:0,n;for(n=1;n<=N;n++)s+=c[n]*(type==='cos'?Math.cos(n*PI*t/L):Math.sin(n*PI*t/L));return s}
+function rms(c,type,E,N){return Math.sqrt(Math.max(1e-4,E-partial(c,type,N)))}
+function fmt(x,d){return (+x).toFixed(d===undefined?1:d)}
+function hhmm(t){var m=Math.round(t*60),h=Math.floor(m/60)%24,mm=m%60;return (h<10?'0':'')+h+':'+(mm<10?'0':'')+mm}
+function levelOf(p){return p>=45?{k:'severe',r:3,t:'Severe heatwave'}:p>=40?{k:'alert',r:2,t:'Heatwave'}:p>=37?{k:'watch',r:1,t:'Hot day watch'}:{k:'ok',r:0,t:'Normal'}}
+function pillCls(k){return k==='ok'?'':k}
+function heatIndexC(tc,rh){
+  var T=tc*9/5+32;if(T<80||!rh)return null;
+  var R=rh,HI=-42.379+2.04901523*T+10.14333127*R-0.22475541*T*R-0.00683783*T*T-0.05481717*R*R+0.00122874*T*T*R+0.00085282*T*R*R-0.00000199*T*T*R*R;
+  return {c:(HI-32)*5/9,band:HI>=125?'Extreme danger':HI>=103?'Danger':HI>=90?'Extreme caution':'Caution'};
+}
+function analyse(day,N,rh){
+  var f=day.f,c=coefs(f,'cos'),E=energy(f),pk=-1e9,pkT=0,mn=1e9,mnT=0,i,t,v,n;
+  for(i=0;i<=240;i++){t=i/10;v=recon(c,'cos',t,N);if(v>pk){pk=v;pkT=t}if(v<mn){mn=v;mnT=t}}
+  var a=pkT,b=pkT;
+  while(a>0&&recon(c,'cos',a-0.1,N)>=37)a=Math.round((a-0.1)*10)/10;
+  while(b<24&&recon(c,'cos',b+0.1,N)>=37)b=Math.round((b+0.1)*10)/10;
+  var part=partial(c,'cos',N),err=Math.sqrt(Math.max(0,E-part));
+  var dc=c[0]*c[0]/4,varCap=Math.max(0,Math.min(100,100*(part-dc)/Math.max(1e-9,E-dc)));
+  return {c:c,E:E,pk:pk,pkT:pkT,mn:mn,mnT:mnT,win:pk>=37?{from:a,to:b}:null,err:err,cap:Math.min(100,100*part/E),varCap:varCap,
+    rawMax:Math.max.apply(null,f.slice(0,24)),lvl:levelOf(pk),conf:err<=0.5?'High':err<=1.5?'Medium':'Low',hi:heatIndexC(pk,rh),warmNight:mn>=30};
+}
+
+/* ---------- data: simulate and parse ---------- */
+function rng(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function simulate(){
+  var r=rng(S.sim.seed),w=[],k,f=[];
+  for(k=0;k<24;k++)w.push(r()*2-1);w.push(w[0]);
+  for(k=0;k<=24;k++)f.push(S.sim.mean+S.sim.amp*Math.cos(2*PI*(k-15)/24)+0.18*S.sim.amp*Math.cos(4*PI*(k-13)/24)+S.sim.noise*w[k]);
+  return f;
+}
+function nextKey(k){return new Date(Date.UTC(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10)+1)).toISOString().slice(0,10)}
+function labelOf(k){return (+k.slice(8,10))+' '+MON[+k.slice(5,7)-1]}
+function parseInput(text){
+  var lines=text.split(/\r?\n/).map(function(s){return s.trim()}).filter(Boolean),rows=[],i,hi=-1;
+  for(i=0;i<lines.length;i++)if(/(time|date)/i.test(lines[i])&&/temp/i.test(lines[i])){hi=i;break}
+  if(hi>=0){
+    var hdr=lines[hi].split(','),ti=-1,vi=-1;
+    hdr.forEach(function(h,j){if(ti<0&&/(time|date)/i.test(h))ti=j;if(vi<0&&/temp/i.test(h))vi=j});
+    for(i=hi+1;i<lines.length;i++){
+      var cols=lines[i].split(','),ts=(cols[ti]||'').trim(),v=parseFloat(cols[vi]);
+      if(/^\d{4}-\d{2}-\d{2}/.test(ts)&&isFinite(v))rows.push({d:ts.slice(0,10),h:parseInt(ts.slice(11,13),10)||0,v:v});
+    }
+  } else {
+    var re=/(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):\d{2}(?::\d{2})?(?:Z|[+-]\d{2}:?\d{2})?\s*[,;\t ]\s*(-?\d+(?:\.\d+)?)/;
+    lines.forEach(function(l){var m=l.match(re);if(m)rows.push({d:m[1],h:+m[2],v:+m[3]})});
+  }
+  if(rows.length){
+    var order=[],byDay={};
+    rows.forEach(function(r){if(!byDay[r.d]){byDay[r.d]=new Array(24);order.push(r.d)}if(r.h>=0&&r.h<24)byDay[r.d][r.h]=r.v});
+    var days=[],skipped=0;
+    order.forEach(function(k){
+      var arr=byDay[k],have=0,h;for(h=0;h<24;h++)if(arr[h]!==undefined)have++;
+      if(have<18){skipped++;return}
+      var f=[];
+      for(h=0;h<24;h++){
+        if(arr[h]!==undefined){f.push(arr[h]);continue}
+        var lo=h-1,hi2=h+1;while(lo>=0&&arr[lo]===undefined)lo--;while(hi2<24&&arr[hi2]===undefined)hi2++;
+        if(lo<0)f.push(arr[hi2]);else if(hi2>=24)f.push(arr[lo]);else f.push(arr[lo]+(arr[hi2]-arr[lo])*(h-lo)/(hi2-lo));
+      }
+      var nk=nextKey(k),nx=byDay[nk]&&byDay[nk][0]!==undefined?byDay[nk][0]:f[0];
+      f.push(nx);days.push({key:k,label:labelOf(k),f:f});
+    });
+    return {days:days,skipped:skipped};
+  }
+  var nums=text.split(/[\s,;]+/).filter(function(x){return x!==''}).map(Number);
+  if(!nums.length||nums.some(function(x){return !isFinite(x)}))return {error:'Could not read the readings. Paste numbers, or CSV rows with a date-time and a temperature.'};
+  var out=[],d;
+  if(nums.length===25)out.push({key:'',label:'Your day',f:nums});
+  else if(nums.length%24===0){
+    for(d=0;d<nums.length/24;d++){var f2=nums.slice(d*24,d*24+24);f2.push(nums[(d+1)*24]!==undefined?nums[(d+1)*24]:f2[0]);out.push({key:'',label:nums.length===24?'Your day':'Day '+(d+1),f:f2})}
+  } else return {error:'Found '+nums.length+' numbers. Enter 24 or 25 for one day, or a multiple of 24 for several days.'};
+  return {days:out,skipped:0};
+}
+function genText(startKey,means,amp,noise,seed){
+  var r=rng(seed),k=startKey,lines=['time,temperature_2m (°C)'];
+  means.forEach(function(m){
+    for(var h=0;h<24;h++){var v=m+amp*Math.cos(2*PI*(h-15)/24)+0.18*amp*Math.cos(4*PI*(h-13)/24)+noise*(r()*2-1);lines.push(k+'T'+(h<10?'0':'')+h+':00,'+v.toFixed(1))}
+    k=nextKey(k);
+  });
+  return lines.join('\n');
+}
+var EX={
+  spell:{t:function(){return genText('2026-05-12',[29.5,34,36,37.5,37,34,29.5],7,0.6,11)},rh:30},
+  humid:{t:function(){return genText('2026-06-03',[31],2.6,0.4,5)},rh:75},
+  mild:{t:function(){return genText('2026-01-15',[25.5],5,0.5,3)},rh:40}
+};
+
+/* ---------- colour ramp for heat stripes ---------- */
+var RAMP=[[20,[47,110,166]],[28,[143,187,214]],[34,[244,213,141]],[40,[232,131,58]],[44,[192,64,26]],[48,[110,15,38]]];
+function ramp(v){
+  var i;if(v<=RAMP[0][0])return 'rgb('+RAMP[0][1].join(',')+')';
+  for(i=1;i<RAMP.length;i++)if(v<=RAMP[i][0]){
+    var a=RAMP[i-1],b=RAMP[i],t=(v-a[0])/(b[0]-a[0]),c=[0,1,2].map(function(j){return Math.round(a[1][j]+(b[1][j]-a[1][j])*t)});
+    return 'rgb('+c.join(',')+')';
+  }
+  return 'rgb('+RAMP[RAMP.length-1][1].join(',')+')';
+}
+
+/* ---------- charts ---------- */
+function lin(d0,d1,r0,r1){return function(v){return r0+(v-d0)*(r1-r0)/(d1-d0)}}
+function chartMain(f,c,N,type){
+  var W=640,H=300,m={l:46,r:14,t:14,b:36},pts=[],i,t,v,lo=1e9,hi=-1e9;
+  for(i=0;i<=240;i++){t=i/10;v=recon(c,type,t,N);pts.push([t,v]);lo=Math.min(lo,v);hi=Math.max(hi,v)}
+  f.forEach(function(v){lo=Math.min(lo,v);hi=Math.max(hi,v)});
+  hi=Math.max(hi,41);var step=(hi-lo)>22?5:2;lo=Math.floor((lo-0.5)/step)*step;hi=Math.ceil((hi+0.5)/step)*step;
+  var X=lin(0,24,m.l,W-m.r),Y=lin(lo,hi,H-m.b,m.t),s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Hourly temperatures and the curve built from waves">',y,x;
+  for(y=lo;y<=hi+1e-9;y+=step)s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'"/><text x="'+(m.l-6)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+y+'</text>';
+  for(x=0;x<=24;x+=3)s+='<line class="gl" x1="'+X(x)+'" x2="'+X(x)+'" y1="'+m.t+'" y2="'+(H-m.b)+'"/><text x="'+X(x)+'" y="'+(H-m.b+16)+'" text-anchor="middle">'+(x<10?'0':'')+x+':00</text>';
+  s+='<line class="ax" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+(H-m.b)+'" y2="'+(H-m.b)+'"/><text x="'+(m.l-38)+'" y="'+(m.t+6)+'" class="lab">°C</text>';
+  if(40>=lo&&40<=hi)s+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(40)+'" y2="'+Y(40)+'" stroke="var(--s-severe)" stroke-width="1.5" stroke-dasharray="6 4"/>';
+  s+='<polyline fill="none" stroke="var(--heat)" stroke-width="2.6" stroke-linejoin="round" points="'+pts.map(function(p){return X(p[0]).toFixed(1)+','+Y(p[1]).toFixed(1)}).join(' ')+'"/>';
+  f.forEach(function(v,k){s+='<circle cx="'+X(k)+'" cy="'+Y(v)+'" r="3.2" fill="var(--fg)"/>'});
+  return s+'</svg>';
+}
+function chartSpec(c,N,type){
+  var W=640,H=260,m={l:46,r:14,t:14,b:46},mx=0,n;
+  for(n=1;n<=NMAX;n++)mx=Math.max(mx,Math.abs(c[n]));
+  var step=mx>12?4:mx>6?2:mx>3?1:0.5,top=Math.ceil(mx*1.08/step)*step;
+  var X=lin(0,NMAX+1,m.l,W-m.r),Y=lin(0,top,H-m.b,m.t),bw=(W-m.l-m.r)/(NMAX+1)*0.62,y;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Size of each wave">';
+  for(y=0;y<=top+1e-9;y+=step)s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'"/><text x="'+(m.l-6)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+y+'</text>';
+  var per={2:'24h',4:'12h',6:'8h',8:'6h',12:'4h'};
+  for(n=1;n<=NMAX;n++){
+    var cx=X(n),h=Y(0)-Y(Math.abs(c[n]));
+    s+='<rect x="'+(cx-bw/2)+'" y="'+Y(Math.abs(c[n]))+'" width="'+bw+'" height="'+Math.max(0,h)+'" fill="'+(n<=N?'var(--heat)':'var(--line)')+'"/>';
+    s+='<text x="'+cx+'" y="'+(H-m.b+15)+'" text-anchor="middle" class="'+(n<=N?'lab':'')+'">'+n+'</text>';
+    if(per[n])s+='<text x="'+cx+'" y="'+(H-m.b+29)+'" text-anchor="middle">'+per[n]+'</text>';
+  }
+  s+='<line class="ax" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(0)+'" y2="'+Y(0)+'"/><text x="'+(m.l-38)+'" y="'+(m.t+6)+'" class="lab">°C</text><text x="'+((m.l+W-m.r)/2)+'" y="'+(H-4)+'" text-anchor="middle">wave number n</text>';
+  return s+'</svg>';
+}
+function chartErr(cc,cs,E,N,type){
+  var W=640,H=260,m={l:46,r:14,t:14,b:36},lo=Math.log10(0.05),hi=Math.log10(60);
+  var X=lin(0,NMAX,m.l,W-m.r),Y=function(v){return lin(lo,hi,H-m.b,m.t)(Math.log10(Math.max(0.05,v)))};
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Average error as more waves are kept">',n;
+  [0.1,0.3,1,3,10,30].forEach(function(v){s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(v)+'" y2="'+Y(v)+'"/><text x="'+(m.l-6)+'" y="'+(Y(v)+4)+'" text-anchor="end">'+v+'</text>'});
+  for(n=0;n<=NMAX;n+=5)s+='<text x="'+X(n)+'" y="'+(H-m.b+16)+'" text-anchor="middle">'+n+'</text>';
+  s+='<line class="ax" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+(H-m.b)+'" y2="'+(H-m.b)+'"/><text x="'+(m.l-38)+'" y="'+(m.t+6)+'" class="lab">°C</text><text x="'+((m.l+W-m.r)/2)+'" y="'+(H-4)+'" text-anchor="middle">N, waves kept</text>';
+  function line(c,t2,col,act){var p=[],k;for(k=0;k<=NMAX;k++)p.push(X(k).toFixed(1)+','+Y(rms(c,t2,E,k)).toFixed(1));return '<polyline fill="none" stroke="'+col+'" stroke-width="'+(act?3:1.5)+'" '+(act?'':'stroke-dasharray="5 4" ')+'stroke-linejoin="round" points="'+p.join(' ')+'"/>'}
+  s+=line(type==='cos'?cs:cc,type==='cos'?'sin':'cos',type==='cos'?'var(--alt)':'var(--cool)',false);
+  var cur=type==='cos'?cc:cs;
+  s+=line(cur,type,type==='cos'?'var(--cool)':'var(--alt)',true);
+  s+='<line x1="'+X(N)+'" x2="'+X(N)+'" y1="'+m.t+'" y2="'+(H-m.b)+'" stroke="var(--heat)" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="'+X(N)+'" cy="'+Y(rms(cur,type,E,N))+'" r="5" fill="var(--heat)"/>';
+  return s+'</svg>';
+}
+function chartMirror(f,odd){
+  var W=420,H=210,m={l:36,r:10,t:12,b:28},mx=Math.max.apply(null,f),mn=Math.min.apply(null,f);
+  function val(t){var a=Math.abs(t),i=Math.min(23,Math.floor(a)),fr=a-i,v=f[i]+(f[i+1]-f[i])*fr;return (odd&&t<0)?-v:v}
+  var hi=Math.ceil((mx+2)/5)*5,lo=odd?-hi:Math.floor((mn-3)/5)*5,step=odd?20:5;
+  var X=lin(-24,24,m.l,W-m.r),Y=lin(lo,hi,H-m.b,m.t),s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+(odd?'Day with flipped mirror copy':'Day with mirror copy')+'">',y,x,i;
+  for(y=Math.ceil(lo/step)*step;y<=hi;y+=step)s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'"/><text x="'+(m.l-5)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+y+'</text>';
+  [-24,-12,0,12,24].forEach(function(t){s+='<text x="'+X(t)+'" y="'+(H-m.b+16)+'" text-anchor="middle">'+t+' h</text>'});
+  s+='<line class="ax" x1="'+X(0)+'" x2="'+X(0)+'" y1="'+m.t+'" y2="'+(H-m.b)+'"/>';
+  function pl(a,b,col,w){var p=[];for(i=0;i<=96;i++){var t=a+(b-a)*i/96;p.push(X(t).toFixed(1)+','+Y(val(t)).toFixed(1))}return '<polyline fill="none" stroke="'+col+'" stroke-width="'+w+'" stroke-linejoin="round" points="'+p.join(' ')+'"/>'}
+  s+=pl(-24,0,'var(--cool)',2.2)+pl(0,24,'var(--heat)',2.8);
+  s+='<text x="'+X(12)+'" y="'+(m.t+12)+'" text-anchor="middle" class="lab">your day</text><text x="'+X(-12)+'" y="'+(m.t+12)+'" text-anchor="middle">'+(odd?'flipped copy':'mirror copy')+'</text>';
+  if(odd)s+='<text x="'+(X(0)+6)+'" y="'+(Y(0)-4)+'" class="lab">jump</text>';
+  return s+'</svg>';
+}
+function mini(fn,lo,hi,col,tickStep,dots){
+  var W=240,H=120,m={l:30,r:6,t:8,b:20},X=lin(0,24,m.l,W-m.r),Y=lin(lo,hi,H-m.b,m.t),p=[],i,y;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-hidden="true">';
+  for(y=Math.ceil(lo/tickStep)*tickStep;y<=hi+1e-9;y+=tickStep)s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'"/><text x="'+(m.l-4)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+(Math.round(y*10)/10)+'</text>';
+  [0,12,24].forEach(function(t){s+='<text x="'+X(t)+'" y="'+(H-m.b+13)+'" text-anchor="middle">'+t+'h</text>'});
+  if(0>=lo&&0<=hi)s+='<line class="ax" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(0)+'" y2="'+Y(0)+'"/>';
+  for(i=0;i<=96;i++){var t=24*i/96;p.push(X(t).toFixed(1)+','+Y(fn(t)).toFixed(1))}
+  s+='<polyline fill="none" stroke="'+col+'" stroke-width="2.4" stroke-linejoin="round" points="'+p.join(' ')+'"/>';
+  if(dots)dots.forEach(function(v,k){s+='<circle cx="'+X(k)+'" cy="'+Y(v)+'" r="1.8" fill="var(--fg)"/>'});
+  return s+'</svg>';
+}
+function chartPeaks(res){
+  var W=640,H=230,m={l:46,r:14,t:14,b:30},n=res.length,lo=20,hi=Math.ceil(Math.max(46,Math.max.apply(null,res.map(function(r){return r.pk}))+1)/5)*5;
+  var X=lin(0,n,m.l,W-m.r),Y=lin(lo,hi,H-m.b,m.t),bw=Math.min(40,(W-m.l-m.r)/n*0.62),y,i;
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Fitted peak temperature for each day">';
+  for(y=lo;y<=hi;y+=5)s+='<line class="gl" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(y)+'" y2="'+Y(y)+'"/><text x="'+(m.l-6)+'" y="'+(Y(y)+4)+'" text-anchor="end">'+y+'</text>';
+  var every=Math.ceil(n/12);
+  for(i=0;i<n;i++){
+    var cx=X(i+0.5);
+    s+='<rect x="'+(cx-bw/2)+'" y="'+Y(res[i].pk)+'" width="'+bw+'" height="'+(Y(lo)-Y(res[i].pk))+'" fill="var(--s-'+res[i].lvl.k+')"'+(i===S.sel?' stroke="var(--fg)" stroke-width="2"':'')+'/>';
+    if(i%every===0)s+='<text x="'+cx+'" y="'+(H-m.b+16)+'" text-anchor="middle">'+(S.days[i].key?(+S.days[i].key.slice(8,10)):i+1)+'</text>';
+  }
+  s+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(40)+'" y2="'+Y(40)+'" stroke="var(--s-severe)" stroke-width="1.5" stroke-dasharray="6 4"/><line class="ax" x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+Y(lo)+'" y2="'+Y(lo)+'"/><text x="'+(m.l-38)+'" y="'+(m.t+6)+'" class="lab">°C</text>';
+  return s+'</svg>';
+}
+function gauge(pk){
+  var W=640,H=92,m={l:14,r:14},lo=24,hi=50,X=lin(lo,hi,m.l,W-m.r);
+  var zones=[[lo,37,'var(--z-ok)','Normal'],[37,40,'var(--z-watch)','Watch'],[40,45,'var(--z-alert)','Heatwave'],[45,hi,'var(--z-severe)','Severe']];
+  var s='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Peak temperature on the warning scale">';
+  zones.forEach(function(z){s+='<rect x="'+X(z[0])+'" y="30" width="'+(X(z[1])-X(z[0]))+'" height="26" fill="'+z[2]+'"/><text x="'+((X(z[0])+X(z[1]))/2)+'" y="48" text-anchor="middle" class="lab">'+z[3]+'</text>'});
+  [30,37,40,45,50].forEach(function(t){s+='<line class="ax" x1="'+X(t)+'" x2="'+X(t)+'" y1="56" y2="62"/><text x="'+X(t)+'" y="76" text-anchor="middle">'+t+' °C</text>'});
+  var p=Math.max(lo,Math.min(hi,pk)),x=X(p);
+  s+='<polygon points="'+(x-8)+',6 '+(x+8)+',6 '+x+',28" fill="var(--fg)"/><text x="'+Math.min(W-60,Math.max(60,x))+'" y="4" text-anchor="middle" class="lab" style="font-size:12px">'+fmt(pk)+' °C</text>';
+  return s+'</svg>';
+}
+
+/* ---------- advice and spells ---------- */
+function adviceFor(a,spell){
+  var out=[],k=a.lvl.k,w=a.win?hhmm(a.win.from)+' to '+hhmm(a.win.to):null;
+  if(k==='severe')out.push('Keep outdoor work and exercise out of the hot hours ('+w+'). Stay in the coolest room available.','Drink water or oral rehydration solution often, even if you are not thirsty.','Check on older people, young children, outdoor workers and anyone with heart or kidney problems.','Confusion, hot dry skin or fainting can mean heat stroke. Call emergency services (112 in India) and start cooling the person at once.');
+  else if(k==='alert')out.push('Avoid heavy outdoor work between '+w+'. Do it early in the morning or in the evening.','Wear loose, light cotton clothes and cover your head outdoors. Rest in the shade and drink water often.','Never leave children or pets in a parked vehicle.');
+  else if(k==='watch')out.push('Heat is building. Plan hard outdoor tasks for the hours outside '+w+'.','Carry water and rest in the shade now and then.');
+  else out.push('The temperature alone does not call for special heat precautions today.');
+  if(a.warmNight)out.push('The night low stays near '+fmt(a.mn,1)+' °C, so the body gets little time to recover. Cool the sleeping area and check on vulnerable people at night.');
+  if(a.hi&&a.hi.band!=='Caution')out.push('With the humidity entered it feels like about '+fmt(a.hi.c,0)+' °C (heat index: '+a.hi.band+'). Humid air stops sweat from cooling you, so rest and drink more than the temperature alone suggests.');
+  if(spell)out.push('This day is part of '+spell.len+' hot days in a row ('+spell.from+' to '+spell.to+'). Heat risk builds up over consecutive days, so keep the precautions going.');
+  if(a.conf==='Low')out.push('The curve is still rough (average error '+fmt(a.err,2)+' °C). Keep more waves or check the readings for gaps.');
+  return out;
+}
+function findSpells(res){
+  var sp=[],i=0;
+  while(i<res.length){
+    if(res[i].lvl.r>=2){var j=i;while(j+1<res.length&&res[j+1].lvl.r>=2)j++;if(j>i)sp.push({a:i,b:j,len:j-i+1,from:S.days[i].label,to:S.days[j].label});i=j+1}else i++;
+  }
+  return sp;
+}
+
+/* ---------- render ---------- */
+var RES=[],lastRep='';
+function render(){
+  var days=S.days;if(!days.length)return;
+  RES=days.map(function(d){return analyse(d,S.N,S.rh)});
+  var spells=findSpells(RES),sel=Math.min(S.sel,days.length-1);S.sel=sel;
+  var day=days[sel],a=RES[sel],f=day.f,type=S.type,cc=a.c,cs=coefs(f,'sin'),c=type==='cos'?cc:cs,E=a.E,spellOfDay=null,i;
+  spells.forEach(function(sp){if(sel>=sp.a&&sel<=sp.b)spellOfDay=sp});
+
+  /* hero */
+  var st='';for(i=0;i<24;i++)st+='<span style="background:'+ramp(f[i])+'" title="'+(i<10?'0':'')+i+':00  '+fmt(f[i])+' °C"></span>';
+  $('stripes').innerHTML=st;
+  $('stripe-note').textContent=(S.place?S.place+' · ':'')+day.label+' · hover a stripe for its reading';
+  var capLab=100*partial(c,type,S.N)/E;
+  $('f1').innerHTML='25 hourly readings<br>highest <b>'+fmt(a.rawMax)+' °C</b>, average <b>'+fmt(trapz(f)/L)+' °C</b>';
+  $('f2').innerHTML=(type==='cos'?'Cosine':'Sine')+' series with <b>N = '+S.N+'</b> waves';
+  $('f3').innerHTML='Peak <b>'+fmt(a.pk)+' °C</b> at <b>'+hhmm(a.pkT)+'</b><br>explains <b>'+fmt(a.varCap,1)+' %</b> of the day\'s ups and downs';
+  $('f4').innerHTML='<span class="pill '+pillCls(a.lvl.k)+'">'+a.lvl.t+'</span> <span class="hint">confidence '+a.conf.toLowerCase()+'</span>';
+
+  /* source note, day select */
+  var note='';
+  if(S.mode==='sim')note='<div class="banner ex"><b>Example data.</b> The readings come from a formula, not from a weather station. Use "My own readings" to analyse real data.</div>';
+  else if(S.example)note='<div class="banner ex"><b>Example data.</b> These readings are simulated. Paste or upload real readings to get a real report.</div>';
+  else note='<div class="banner"><b>Your readings.</b> '+days.length+' day'+(days.length>1?'s':'')+' analysed.</div>';
+  $('srcnote').innerHTML=note;
+  var ds=$('daysel');
+  if(days.length>1){
+    $('dayrow').hidden=false;
+    ds.innerHTML=days.map(function(d,j){return '<option value="'+j+'">'+d.label+'</option>'}).join('');ds.value=sel;
+  } else $('dayrow').hidden=true;
+
+  /* mirrors, blocks */
+  $('mirC').innerHTML=chartMirror(f,false);$('mirS').innerHTML=chartMirror(f,true);
+  var idx=[],n;for(n=1;n<=NMAX;n++)idx.push(n);
+  idx.sort(function(x,y){return Math.abs(cc[y])-Math.abs(cc[x])});
+  var top=idx.slice(0,3),b='';
+  b+='<div class="mini"><div class="ttl">Steady level</div>'+mini(function(){return cc[0]/2},Math.floor(cc[0]/2-6),Math.ceil(cc[0]/2+6),'var(--cool)',3)+'<div class="cap">The average temperature of the day, a₀/2 = '+fmt(cc[0]/2,1)+' °C.</div></div>';
+  var cols=['var(--heat)','var(--teal)','var(--alt)'];
+  top.forEach(function(n,j){
+    var amp=Math.max(1,Math.ceil(Math.abs(cc[n])*1.15));
+    b+='<div class="mini"><div class="ttl">Wave n = '+n+'</div>'+mini(function(t){return cc[n]*Math.cos(n*PI*t/L)},-amp,amp,cols[j],amp>4?Math.ceil(amp/2):amp)+'<div class="cap">Repeats every '+fmt(48/n,1)+' h. Size '+fmt(Math.abs(cc[n]),2)+' °C.</div></div>';
+  });
+  var four=function(t){var s=cc[0]/2;top.forEach(function(n){s+=cc[n]*Math.cos(n*PI*t/L)});return s};
+  var lo4=Math.floor(Math.min(a.mn,Math.min.apply(null,f))-2),hi4=Math.ceil(Math.max(a.pk,a.rawMax)+2);
+  b+='<div class="mini"><div class="ttl">Level + these 3 waves</div>'+mini(four,lo4,hi4,'var(--heat)',Math.ceil((hi4-lo4)/4),f)+'<div class="cap">Dots are your readings. Already close with only 4 pieces.</div></div>';
+  $('blocks').innerHTML=b;
+
+  /* lab */
+  $('labChart').innerHTML=chartMain(f,c,S.N,type);
+  var pkL=-1e9,pkLT=0,t;for(i=0;i<=240;i++){t=i/10;var v=recon(c,type,t,S.N);if(v>pkL){pkL=v;pkLT=t}}
+  var errL=rms(c,type,E,S.N);
+  $('labCap').textContent='With N = '+S.N+' waves the curve peaks at '+fmt(pkL)+' °C near '+hhmm(pkLT)+'. Average error against the readings: '+fmt(errL,2)+' °C.'+(type==='sin'?' The sine curve is forced to 0 °C at 00:00 and 24:00, so it needs many waves before it can be trusted.':'');
+  $('spec').innerHTML=chartSpec(c,S.N,type);
+  $('errc').innerHTML=chartErr(cc,cs,E,S.N,type);
+  $('n-out').textContent=S.N;$('decN').textContent=S.N;
+
+  /* worked example */
+  var wn=+$('wn').value,rows='<tr><th>t (h)</th><th class="n">f(t) in °C</th><th class="n">cos('+wn+'πt/24)</th><th class="n">weight</th><th class="n">product</th></tr>',sum=0,k;
+  for(k=0;k<=24;k++){var bb=Math.cos(wn*PI*k/L),w=(k===0||k===24)?0.5:1,p=f[k]*bb*w;sum+=p;rows+='<tr><td>'+k+'</td><td class="n">'+fmt(f[k],2)+'</td><td class="n">'+fmt(bb,4)+'</td><td class="n">'+w+'</td><td class="n">'+fmt(p,3)+'</td></tr>'}
+  $('wtable').innerHTML=rows;
+  var an=2/L*sum;
+  $('wres').innerHTML='Sum of products = '+fmt(sum,3)+'<br>a<sub>'+wn+'</sub> = (2/24) × '+fmt(sum,3)+' = <b>'+fmt(an,3)+' °C</b><br>Energy this wave adds: ½ × ('+fmt(an,3)+')² = '+fmt(0.5*an*an,3)+' °C² &nbsp;·&nbsp; it repeats every '+fmt(48/wn,1)+' hours';
+
+  /* energy */
+  $('meterLab').textContent='Energy of the day kept by '+S.N+' '+(type==='cos'?'cosine':'sine')+' waves'+(type==='cos'?' (plus the average level)':'');
+  var cp=Math.min(100,capLab);$('meterPct').textContent=fmt(cp,2)+' %';$('meterBar').style.width=cp+'%';
+  $('meter2Pct').textContent=fmt(a.varCap,1)+' %';$('meter2Bar').style.width=a.varCap+'%';
+  $('energyFacts').innerHTML='<dt>Total energy E of the day</dt><dd>'+fmt(E,1)+' °C²</dd><dt>Energy kept</dt><dd>'+fmt(partial(c,type,S.N),1)+' °C²</dd><dt>Energy missing</dt><dd>'+fmt(Math.max(0,E-partial(c,type,S.N)),2)+' °C²</dd><dt>Average error √(missing)</dt><dd>'+fmt(errL,2)+' °C</dd>';
+
+  /* decision */
+  $('decTitle').textContent=(S.place?S.place+' · ':'')+day.label;
+  $('decPill').innerHTML='<span class="pill bigpill '+pillCls(a.lvl.k)+'">'+a.lvl.t+'</span>';
+  $('gauge').innerHTML=gauge(a.pk);
+  $('stats').innerHTML=
+    '<div class="stat"><div class="k">Peak</div><div class="v">'+fmt(a.pk)+' °C</div><div class="s">at '+hhmm(a.pkT)+' · highest reading '+fmt(a.rawMax)+' °C</div></div>'+
+    '<div class="stat"><div class="k">Hot hours (37 °C+)</div><div class="v">'+(a.win?hhmm(a.win.from)+'–'+hhmm(a.win.to):'None')+'</div><div class="s">'+(a.win?fmt(a.win.to-a.win.from,1)+' hours':'stays below 37 °C')+'</div></div>'+
+    '<div class="stat"><div class="k">Night low</div><div class="v">'+fmt(a.mn)+' °C</div><div class="s">'+(a.warmNight?'warm night, little recovery':'at '+hhmm(a.mnT))+'</div></div>'+
+    '<div class="stat"><div class="k">Feels like</div><div class="v">'+(a.hi?fmt(a.hi.c,0)+' °C':'n/a')+'</div><div class="s">'+(a.hi?a.hi.band:'enter humidity to see it')+'</div></div>';
+  var adv=adviceFor(a,spellOfDay);
+  $('advice').innerHTML=adv.map(function(){return '<li></li>'}).join('');
+  var lis=$('advice').children;for(i=0;i<lis.length;i++)lis[i].textContent=adv[i];
+  var lv=[['severe','Severe heatwave','peak 45 °C or more'],['alert','Heatwave','peak 40 °C or more'],['watch','Hot day watch','peak 37 °C or more'],['ok','Normal','below 37 °C']];
+  $('ladder').innerHTML=lv.map(function(r){return '<li class="'+(r[0]===a.lvl.k?'on':'')+'"><span>'+r[1]+'</span><span style="font-family:var(--f-mono)">'+r[2]+'</span></li>'}).join('');
+  $('confTxt').textContent=a.conf+' confidence. The curve with '+S.N+' waves is on average '+fmt(a.err,2)+' °C away from the readings'+(a.conf==='High'?', so the peak and hot hours are reliable.':a.conf==='Medium'?', so treat the peak as approximate.':'. Keep more waves before trusting the result.');
+  if($('rh2')!==document.activeElement)$('rh2').value=S.rh||'';
+  $('spellBanner').innerHTML=spells.length?'<div class="banner spell"><b>Heatwave spell:</b> '+spells.map(function(sp){return sp.len+' days in a row at or above 40 °C ('+sp.from+' to '+sp.to+')'}).join('; ')+'.</div>':'';
+
+  /* multi-day */
+  if(days.length>1){
+    $('multi').hidden=false;$('peaks').innerHTML=chartPeaks(RES);
+    $('daytable').innerHTML='<thead><tr><th>Day</th><th class="n">Highest reading</th><th class="n">Peak of curve</th><th class="n">Peak at</th><th class="n">Night low</th><th>Rating</th></tr></thead><tbody>'+
+      RES.map(function(r,j){return '<tr data-i="'+j+'" tabindex="0" class="clk '+(j===sel?'pick':'')+'"><td>'+days[j].label+'</td><td class="n">'+fmt(r.rawMax)+' °C</td><td class="n">'+fmt(r.pk)+' °C</td><td class="n">'+hhmm(r.pkT)+'</td><td class="n">'+fmt(r.mn)+' °C</td><td><span class="pill '+pillCls(r.lvl.k)+'">'+r.lvl.t+'</span></td></tr>'}).join('')+'</tbody>';
+    Array.prototype.forEach.call($('daytable').querySelectorAll('tr.clk'),function(tr){
+      function pick(){S.sel=+tr.getAttribute('data-i');render()}
+      tr.addEventListener('click',pick);
+      tr.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();pick()}});
+    });
+  } else $('multi').hidden=true;
+
+  /* summary text */
+  lastRep=['HEATWAVE CHECK'+(S.place?' - '+S.place:''),'Day: '+day.label+((S.mode==='sim'||S.example)?' (simulated example)':''),
+    'Rating: '+a.lvl.t+' (peak '+fmt(a.pk)+' C at '+hhmm(a.pkT)+')',
+    'Hot hours above 37 C: '+(a.win?hhmm(a.win.from)+' to '+hhmm(a.win.to):'none'),
+    'Night low: '+fmt(a.mn)+' C'+(a.warmNight?' (warm night)':''),
+    a.hi?'Feels like: '+fmt(a.hi.c,0)+' C ('+a.hi.band+')':'',
+    spellOfDay?'Spell: '+spellOfDay.len+' hot days in a row ('+spellOfDay.from+' to '+spellOfDay.to+')':'',
+    'Method: half-range cosine Fourier series, N = '+S.N+', '+fmt(a.varCap,1)+'% of daily variation explained, average error '+fmt(a.err,2)+' C ('+a.conf.toLowerCase()+' confidence)',
+    'Advice:'].concat(adv.map(function(t){return '- '+t})).filter(Boolean).join('\n');
+  $('rep').textContent=lastRep;
+}
+
+/* ---------- inputs ---------- */
+function simDays(){S.days=[{key:'',label:'Example day',f:simulate()}];S.sel=0;S.mode='sim';S.example=false}
+function stopPlay(){if(S.timer){clearInterval(S.timer);S.timer=null;$('play').textContent='Add waves one by one'}}
+function setTab(mode){
+  $('tab-sim').setAttribute('aria-pressed',mode==='sim');$('tab-mine').setAttribute('aria-pressed',mode==='mine');
+  $('pane-sim').hidden=mode!=='sim';$('pane-mine').hidden=mode!=='mine';
+  if(mode==='sim'){simDays();render()}
+  else if(S.mine){S.days=S.mine.days;S.example=S.mine.example;S.mode='mine';S.sel=0;render()}
+}
+function analyseText(isExample){
+  $('err').textContent='';
+  var text=$('data').value;if(!text.trim()){$('err').textContent='Paste some readings first.';return}
+  var p=parseInput(text);if(p.error){$('err').textContent=p.error;return}
+  if(!p.days.length){$('err').textContent='No day had at least 18 hourly readings. Check the date-time column and the values.';return}
+  if($('unit').value==='F')p.days.forEach(function(d){d.f=d.f.map(function(v){return (v-32)*5/9})});
+  var bad=false;p.days.forEach(function(d){d.f.forEach(function(v){if(v<-30||v>60)bad=true})});
+  if(bad){$('err').textContent='Some values fall outside -30 to 60 °C. Check the unit setting.';return}
+  S.mine={days:p.days,example:!!isExample};S.days=p.days;S.sel=0;S.mode='mine';S.example=!!isExample;S.place=$('place').value.trim();
+  var rh=parseFloat($('rh').value);S.rh=isFinite(rh)&&rh>0?Math.min(100,rh):null;
+  if(p.skipped)$('err').textContent=p.skipped+' day(s) skipped because they had fewer than 18 hourly readings.';
+  render();
+}
+$('tab-sim').addEventListener('click',function(){setTab('sim')});
+$('tab-mine').addEventListener('click',function(){setTab('mine')});
+$('mean-sl').addEventListener('input',function(e){S.sim.mean=+e.target.value;$('mean-out').textContent=fmt(S.sim.mean,1)+' °C';simDays();render()});
+$('amp-sl').addEventListener('input',function(e){S.sim.amp=+e.target.value;$('amp-out').textContent=fmt(S.sim.amp,1)+' °C';simDays();render()});
+$('noise-sl').addEventListener('input',function(e){S.sim.noise=+e.target.value;$('noise-out').textContent=fmt(S.sim.noise,1)+' °C';simDays();render()});
+$('reseed').addEventListener('click',function(){S.sim.seed=Math.floor(Math.random()*100000);simDays();render()});
+$('n-sl').addEventListener('input',function(e){stopPlay();S.N=+e.target.value;render()});
+document.querySelectorAll('input[name=stype]').forEach(function(r){r.addEventListener('change',function(e){S.type=e.target.value;render()})});
+$('wn').addEventListener('change',render);
+$('daysel').addEventListener('change',function(e){S.sel=+e.target.value;render()});
+$('rh2').addEventListener('input',function(e){var v=parseFloat(e.target.value);S.rh=isFinite(v)&&v>0?Math.min(100,v):null;$('rh').value=S.rh||'';render()});
+$('go').addEventListener('click',function(){analyseText(false)});
+$('file').addEventListener('change',function(e){
+  var fl=e.target.files[0];if(!fl)return;
+  var r=new FileReader();r.onload=function(){$('data').value=String(r.result).slice(0,2000000);$('unit').value='C';analyseText(false)};
+  r.onerror=function(){$('err').textContent='Could not read that file.'};r.readAsText(fl);
+});
+$('ex').addEventListener('change',function(e){
+  var k=e.target.value;if(!k)return;
+  $('data').value=EX[k].t();$('unit').value='C';$('rh').value=EX[k].rh;$('place').value='';analyseText(true);
+});
+$('play').addEventListener('click',function(){
+  if(S.timer){stopPlay();return}
+  S.N=0;$('n-sl').value=0;render();$('play').textContent='Stop';
+  S.timer=setInterval(function(){if(S.N>=NMAX){stopPlay();return}S.N++;$('n-sl').value=S.N;render()},650);
+});
+$('copy').addEventListener('click',function(){
+  var b=$('copy');
+  function ok(){b.textContent='Copied'}
+  function fb(){var r=document.createRange();r.selectNodeContents($('rep'));var s=window.getSelection();s.removeAllRanges();s.addRange(r);b.textContent='Selected, now copy it'}
+  try{navigator.clipboard.writeText(lastRep).then(ok,fb)}catch(e){fb()}
+});
+/* nav */
+var NAV=[['problem','Problem'],['data','Data'],['waves','Waves'],['lab','Try it'],['example','Example'],['energy','Energy'],['decision','Decision'],['limits','Limits']];
+$('nav').innerHTML=NAV.map(function(n){return '<button type="button" data-t="'+n[0]+'">'+n[1]+'</button>'}).join('');
+Array.prototype.forEach.call($('nav').querySelectorAll('button'),function(btn){
+  btn.addEventListener('click',function(){
+    var el=$(btn.getAttribute('data-t')),rm=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    el.scrollIntoView({behavior:rm?'auto':'smooth',block:'start'});
+  });
+});
+
+$('mean-out').textContent='35.5 °C';$('amp-out').textContent='7.5 °C';$('noise-out').textContent='0.6 °C';
+simDays();render();
+})();
+</script>
+
+</body>
+</html>
